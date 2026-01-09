@@ -1,5 +1,6 @@
 import json
 from src.models import locationModel, OpenAQResponse, sensorModel, coordinateModel
+import csv
 
 
 
@@ -42,7 +43,7 @@ def flatten_location_data(validated_loc):
         "location_name": validated_loc.name,
         "latitude": validated_loc.coordinates.latitude,
         "longitude": validated_loc.coordinates.longitude,
-        "last_updated_utc": validated_loc.last_updated.utc
+        "last_updated_utc": validated_loc.datetime_last.utc.strftime("%Y-%m-%d %H:%M:%S")
     }
     
     # Loop through each sensor and create a row
@@ -57,3 +58,24 @@ def flatten_location_data(validated_loc):
         flat_rows.append(row)
         
     return flat_rows
+
+
+def write_to_csv(flat_data, filename = "data/processed/air_data.csv"):
+    import os
+    os.makedirs(os.path.dirname(filename),exist_ok = True)
+
+    if not flat_data:
+        print("no data to write")
+        return
+    header = flat_data[0].keys()
+
+    with open(filename, mode = 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=header)
+        writer.writeheader()
+        writer.writerows(flat_data)
+
+    print("data written to", filename)
+
+
+flat_rows = flatten_location_data(location)
+write_to_csv(flat_rows)
