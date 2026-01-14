@@ -11,7 +11,7 @@ class paramModel(BaseModel):
     id: int = Field(..., gt=0)
     name: str = Field(..., min_length=1)
     units: str  
-    display_name: str = Field(..., min_length=1)
+    display_name: str = Field(..., alias="displayName")
 
     @model_validator(mode='after')
     def validate_units(self):
@@ -27,23 +27,16 @@ class sensorModel(BaseModel):
 
 class Date_timeModel(BaseModel):
     utc: datetime
-    local: datetime
+    local: str #V3 of openAq returns as a string
 
-    @model_validator(mode='after')
-    def validate_tz(self):
-        # Pydantic already guaranteed they are datetimes, 
-        # so we only check the timezone!
-        if self.local.tzinfo is None:
-            raise ValueError("Local time must be timezone-aware.")
-        return self
 
 class locationModel(BaseModel):
     id: int = Field(..., gt=0)
     name: str = Field(..., min_length=1)
     coordinates: coordinateModel
     sensors: List[sensorModel] # Use capital 'L' List for better compatibility
-    is_mobile: bool
-    datetime_last: Date_timeModel
+    isMobile: bool
+    datetime_last: Date_timeModel = Field(..., alias="datetimeLast")
 
     @model_validator(mode='after')
     def validate_logic(self):

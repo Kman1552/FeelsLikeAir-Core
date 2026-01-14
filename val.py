@@ -1,50 +1,47 @@
 import json
 from src.models import locationModel, OpenAQResponse, sensorModel, coordinateModel
 import csv
+import requests
+import os   
+from dotenv import load_dotenv
+
+load_dotenv()
+API_KEY = os.getenv("OPENAQ_API_KEY")
+
+location_IDS = [8557, 8192, 70631, 218205, 8039]  # dehli, kolkata, mumbai, bangalore, pune
+base_url = "https://api.openaq.org/v3/locations"
+
+def fetch_validate_location(loc_id):
+    url = f"{base_url}/{loc_id}"
+    try:
+        headers = {"X-API-Key": API_KEY,
+            "User-Agent": "AeroSense-Data-Pipeline/1.0"}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()  # Raise an error for bad status codes
+
+        payload = response.json()
+        # Validate the response using OpenAQResponse model
+
+        raw_data = payload.get('results', [])[0] if payload.get('results') else payload
+
+        validate_data = locationModel(**raw_data)
+        return validate_data
+    except Exception as e:
+        print(f"error with ID {loc_id}: {e}")
+        return None
 
 
-
-with open('data/raw/location_8118.json', 'r') as f:
-    raw_data = json.load(f)
-loc_data = raw_data['results'][0]
-
-
-#location validation
-try:
-    location = locationModel(**loc_data)
-    print("Location data is valid:", location)
-except ValueError as e:
-    print("validation error in location data:", e)
-
-
-#sensor validation
-try:
-    sensor = sensorModel(**loc_data['sensors'][0])
-    print("Sensor data is valid:", sensor)
-except ValueError as e:
-    print("validation error in sensor data:", e)
-
-    
-#coordinate validation
-try :
-    coords = coordinateModel(**loc_data['coordinates'])
-    print("Coordinate data is valid:", coords)
-except ValueError as e:
-    print("validation error in coordinate data:", e)
-
-
-#flatterner
 def flatten_location_data(validated_loc):
     flat_rows = []
     
     # Extract the common data (stuff that stays the same for every sensor)
     common_info = {
-        "location_id": validated_loc.id,
-        "location_name": validated_loc.name,
-        "latitude": validated_loc.coordinates.latitude,
-        "longitude": validated_loc.coordinates.longitude,
-        "last_updated_utc": validated_loc.datetime_last.utc.strftime("%Y-%m-%d %H:%M:%S")
-    }
+    "location_id": validated_loc.id,
+    "location_name": validated_loc.name,
+    "latitude": validated_loc.coordinates.latitude,
+    "longitude": validated_loc.coordinates.longitude,
+    "last_updated_utc": validated_loc.datetime_last.utc.strftime("%Y-%m-%d %H:%M:%S")
+}
     
     # Loop through each sensor and create a row
     for sensor in validated_loc.sensors:
@@ -76,6 +73,19 @@ def write_to_csv(flat_data, filename = "data/processed/air_data.csv"):
 
     print("data written to", filename)
 
+def main():
+    all_flat_rows = []
+    for loc_id in location_IDS:
+        print("fetching ID:", {loc_id})
+        validated_loc = fetch_validate_location(loc_id) # fetching and validating location data
 
-flat_rows = flatten_location_data(location)
-write_to_csv(flat_rows)
+        if validated_loc:
+            rows = flatten_location_data(validated_loc) # flattening the data to csv format
+            all_flat_rows.extend(rows)
+        
+    if all_flat_rows:
+        write_to_csv(all_flat_rows)
+        print(f"data written successfully. {len(all_flat_rows)} sensor records") # if succesfull 
+
+if __name__ == "__main__":
+        main()
